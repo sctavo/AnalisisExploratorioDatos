@@ -1,0 +1,24 @@
+# --- FASE 1: EXTRACCIÓN ---
+# La nueva ruta es /opt/spark/data/
+file_path = "/opt/spark/data/small_data.csv"
+
+# 'spark' ya está definido, así que puedes usarlo
+df = spark.read.csv(file_path, header=True, inferSchema=True)
+
+print("--- Extracción Completa ---")
+df.show(5)
+
+# --- FASE 2: PROCESAMIENTO ---
+df_procesado = df.filter("arr_delay > 0") \
+                 .select("fl_date", "op_unique_carrier", "origin", "dest", "arr_delay")
+
+print("--- Procesamiento Completo ---")
+df_procesado.show(5)
+
+# --- FASE 3: ANÁLISIS ---
+df_analisis = df_procesado.groupBy("op_unique_carrier") \
+                          .count() \
+                          .orderBy("count", ascending=False)
+
+print("--- Análisis Completo ---")
+df_analisis.show()

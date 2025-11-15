@@ -1,0 +1,16 @@
+# Apunta al archivo GRANDE
+file_path_grande = "/opt/spark/data/flight_data_2024.csv"
+
+df_full = spark.read.csv(file_path_grande, header=True, inferSchema=True)
+df_full.cache()
+
+# --- Saca capturas de pantalla de esto ---
+
+# 1. Conteo Total
+df_full.count()
+
+# 2. Esquema
+df_full.printSchema()
+
+# 3. Estadísticas Descriptivas
+df_full.describe(['arr_delay', 'dep_delay', 'distance']).show()
