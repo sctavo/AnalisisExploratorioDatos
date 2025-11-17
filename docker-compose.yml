@@ -1,50 +1,69 @@
+version: "3.8"
+
 services:
-  # 1. El Cerebro (Master)
   spark-master:
     image: apache/spark:3.5.1
     container_name: spark-master
     hostname: spark-master
-    environment:
-      - SPARK_MODE=master
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --host spark-master
+      --port 7077
+      --webui-port 8080
     ports:
-      - '8080:8080' # Interfaz Web del Master
-      - '7077:7077' # Puerto de conexión del Clúster
+      - "8080:8080"
+      - "7077:7077"
+    networks:
+      - spark-net
     volumes:
       - ./data:/opt/spark/data
 
-  # 2. El Trabajador 1
   spark-worker-1:
     image: apache/spark:3.5.1
     container_name: spark-worker-1
+    hostname: spark-worker-1
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
     depends_on:
       - spark-master
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
+    ports:
+      - "8081:8081"
+    networks:
+      - spark-net
     volumes:
       - ./data:/opt/spark/data
 
-  # 3. El Trabajador 2
   spark-worker-2:
     image: apache/spark:3.5.1
     container_name: spark-worker-2
+    hostname: spark-worker-2
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker
+      spark://spark-master:7077
+    networks:
+      - spark-net
     depends_on:
       - spark-master
-    environment:
-      - SPARK_MODE=worker
-      - SPARK_MASTER_URL=spark://spark-master:7077
+    ports:
+      - "8082:8082"
     volumes:
       - ./data:/opt/spark/data
-  
-  # 4. Nuestro "Cliente" (La terminal donde TÚ vas a escribir)
+
   spark-client:
     image: apache/spark:3.5.1
     container_name: spark-client
+    hostname: spark-client
+    command: tail -f /dev/null
+    networks:
+      - spark-net
     depends_on:
       - spark-master
-    environment:
-      - SPARK_MASTER_URL=spark://spark-master:7077
     volumes:
       - ./data:/opt/spark/data
-    # Este comando mantiene el contenedor vivo, esperando tus órdenes
-    entrypoint: tail -f /dev/null
+      - ./scripts:/opt/spark/scripts
+    ports:
+      - "4040:4040"
+
+networks:
+  spark-net:

@@ -1,0 +1,79 @@
+# --- 1. EXTRACCIÓN ---
+print("--- FASE 1: Extrayendo el dataset completo (1.31 GB) ---")
+file_path = "/opt/spark/data/flight_data_2024.csv"
+df = spark.read.csv(file_path, header=True, inferSchema=True)
+df.printSchema()
+
+# --- 2. PROCESAMIENTO (Limpieza y Creación de Etiqueta) ---
+from pyspark.sql.functions import when, col
+
+print("--- FASE 2: Procesamiento y Limpieza ---")
+df_limpio = df.withColumn("label", when(col("arr_delay") > 15, 1.0).otherwise(0.0))
+
+# ¡AQUÍ ESTÁ EL ARREGLO! (Cambiado 'columnas_clave' por 'columnas_utiles')
+columnas_utiles = ["label", "dep_delay", "op_unique_carrier", "origin", "dest", "distance"]
+df_final = df_limpio.select(columnas_utiles).dropna()
+
+print("Datos limpios y etiquetados. Mostrando 5 filas:")
+df_final.show(5)
+
+# --- 3. PROCESAMIENTO (Feature Engineering con Pipeline) ---
+# ¡Ahora estas importaciones SÍ funcionarán gracias a numpy!
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer, VectorAssembler
+
+print("--- FASE 3: Creando el Pipeline de Machine Learning ---")
+
+# 1. Crear Indexadores
+idx_aerolinea = StringIndexer(inputCol="op_unique_carrier", outputCol="idx_aerolinea")
+idx_origen = StringIndexer(inputCol="origin", outputCol="idx_origen")
+idx_destino = StringIndexer(inputCol="dest", outputCol="idx_destino")
+
+# 2. Crear Ensamblador
+assembler = VectorAssembler(
+    inputCols=["dep_delay", "distance", "idx_aerolinea", "idx_origen", "idx_destino"],
+    outputCol="features"
+)
+
+# 3. Definir el Pipeline
+pipeline = Pipeline(stages=[idx_aerolinea, idx_origen, idx_destino, assembler])
+
+# 4. Ajustar el pipeline
+pipeline_model = pipeline.fit(df_final)
+
+# 5. Aplicar la transformación
+datos_para_ml = pipeline_model.transform(df_final)
+
+print("Datos transformados y listos para el modelo:")
+datos_para_ml.select("label", "features").show(5)
+
+# --- 4. ANÁLISIS (Entrenamiento y Evaluación) ---
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+
+print("--- FASE 4: Análisis (Entrenar y Evaluar Modelo) ---")
+
+# 1. Dividir los datos
+(trainingData, testData) = datos_para_ml.randomSplit([0.7, 0.3], seed=123)
+
+# 2. Definir el modelo
+lr = LogisticRegression(featuresCol="features", labelCol="label")
+
+# 3. Entrenar el modelo
+print("... Entrenando el modelo...")
+model = lr.fit(trainingData)
+print("¡Modelo entrenado!")
+
+# 4. Hacer predicciones
+predictions = model.transform(testData)
+
+# 5. Evaluar el modelo
+evaluator = MulticlassClassificationEvaluator(labelCol="label", predictionCol="prediction", metricName="accuracy")
+accuracy = evaluator.evaluate(predictions)
+
+print("--- ¡EXPERIMENTO COMPLETO! ---")
+print(f"El conocimiento extraído es:")
+
+# 'print(f"...{accuracy}...")' usa sintaxis de f-string (Python 3.6+). 
+# Como estás en Python 3.8, funcionará perfecto.
+print(f"La precisión (accuracy) de nuestro modelo es: {accuracy * 100:.2f}%")
